@@ -92,19 +92,18 @@ class Game:
 
     def run_q_session(self):
         while True:
-            inp = input()
+            inp = input('>> ')
             if inp == '$':
                 self.print_q_table()
                 self.print_q_policy()
                 return
 
             episode = list(map(int, inp.split()))
-            print(episode)
             self.update_q_table(episode)
     
     def run_viter_session(self):
         while True:
-            inp = input()
+            inp = input('>> ')
             
             self.print_v_list()
             self.print_v_policy()
@@ -121,11 +120,13 @@ class Game:
     #TODO: implement
     def update_q_table(self, episode):
         episode = list(zip(episode, episode[1:]))
-        print (episode)
         
         #Q(s,t) = a*(r + g*max(Q(s',t')) - Q(s,t))
         for src, dest in episode:
             reward = self.game_graph.get_reward(src, dest)
+            if reward is None:
+                print("Please enter a valid episode")
+                return
             curr_val = self.q_table[src][dest]
             next_state_values = self.q_table[dest]
             self.q_table[src][dest] += self.learning_rate * (reward + self.discount_factor * max(next_state_values) - curr_val)
@@ -137,10 +138,14 @@ class Game:
         for row in self.q_table:
             print ('\t'.join(map(str, row)))
 
+
+    #BOK
     def print_q_policy(self):
-        for row in self.q_table:
-            row_vals = enumerate(row)
-            sorted_row = list(sorted(row)) 
+        for i,row in enumerate(self.q_table):
+            row_vals = list(filter(lambda x: x[1] != 0 ,reversed(sorted(enumerate(row), key=lambda x: x[1]))))
+            
+            if row_vals != []:
+                print(f"{i}\t", ", ".join(str(elem[0]) for elem in row_vals))
     
     def print_v_list(self):
         pass
