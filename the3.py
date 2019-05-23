@@ -1,5 +1,5 @@
 from collections import Counter
-
+from copy import deepcopy
 
 class Transition:
     def __init__(self, source, destination, reward):
@@ -15,6 +15,16 @@ class Action:
 
     def add_subaction(self, subaction):
         self.subactions.append(subaction)
+
+    def get_next_states(self, state_id):
+        res = []
+        
+        for subaction in self.subactions:
+            if subaction.src == state_id:
+                for dest in subaction.dests:
+                    res.append((dest[0], dest[1], subaction.reward))
+        
+        return res
 
     def __repr__(self):
         return f'{self.action_id}: {self.subactions}\n'
@@ -109,12 +119,18 @@ class GameGraph:
 
     #KTÜ
     def get_v_ids(self):
-        return list(self.state_action_map.keys()) + [list(self.state_action_map.keys())[-1] + 1] 
+        return list(self.state_action_map.keys()) + [list(self.state_action_map.keys())[-1] + 1]
 
     def get_reward(self, src, dest):
         for trans in self.transitions:
             if trans.source == src and trans.destination == dest:
                 return trans.reward
+
+    def get_possible_actions(self, state_id):
+        if state_id not in self.state_action_map:
+            return []
+        return self.state_action_map[state_id]
+
 
 class Game:
     def __init__(self, filename = 'the3.inp'):
@@ -133,15 +149,14 @@ class Game:
         self.q_table = [[0 for _ in range(q_dims)] for _ in range(q_dims)]
         
         self.v_list = {key: 0 for key in self.game_graph.get_v_ids()}
-        print (self.v_list)
 
     def run_session(self):
         self.run_q_session()
-        #self.run_viter_session()
+        self.run_viter_session()
 
     def run_q_session(self):
         while True:
-            inp = input('>> ')
+            inp = input('Q-Learning >> ')
             if inp == '$':
                 self.print_q_table()
                 self.print_q_policy()
@@ -152,21 +167,20 @@ class Game:
     
     def run_viter_session(self):
         while True:
-            inp = input('>> ')
+            inp = input('Value Iter >> ')
             
-            self.print_v_list()
-            self.print_v_policy()
             
             if inp == '$':
                 return
             
             elif inp == 'c':
                 self.value_iterate()
+                self.print_v_list()
+                self.print_v_policy()
             
             else:
                 print("Incorrect input. Please enter 'c' or '$':\n")
 
-    #TODO: implement
     def update_q_table(self, episode):
         episode = list(zip(episode, episode[1:]))
         
@@ -183,8 +197,20 @@ class Game:
         self.print_q_table()
 
     def value_iterate(self):
-        for state in self.v_list:
-            pass
+        new_list = deepcopy(self.v_list)
+        for state_id in self.v_list:
+            action_values = []
+            for action_id in self.game_graph.get_possible_actions(state_id):
+                val = 0
+                for next_state_id, prob, reward in self.actions[action_id].get_next_states(state_id):
+                    
+                    val += prob*(reward + self.discount_factor*self.v_list[next_state_id])
+                action_values.append(val)
+            
+            if action_values != []:
+                new_list[state_id] = max(action_values)
+
+        self.v_list = new_list
 
     def print_q_table(self):
         for row in self.q_table:
@@ -198,7 +224,7 @@ class Game:
                 print(f"{i}\t" + ", ".join(str(elem[0]) for elem in row_vals))
     
     def print_v_list(self):
-        pass
+        print(self.v_list)
 
     def print_v_policy(self):
         pass
