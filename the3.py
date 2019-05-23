@@ -7,11 +7,29 @@ class Transition:
         self.destination = destination
         self.reward = reward
 
-#TODO: use maybe
+
 class Action:
     def __init__(self, action_id):
         self.action_id = action_id
-        self.transitions = []
+        self.subactions = []
+
+    def add_subaction(self, subaction):
+        self.subactions.append(subaction)
+
+    def __repr__(self):
+        return f'{self.action_id}: {self.subactions}\n'
+
+class Subaction:
+    def __init__(self):
+        self.src = None
+        self.reward = None
+        self.dests = [] #list of probability dest pairs
+
+    def add_dest(self, dest_id, prob):
+        self.dests.append((dest_id, prob))
+
+    def __repr__(self):
+        return f'src: {self.src}\nreward: {self.reward}\ndests: {self.dests}\n'
 
 
 class Parser:
@@ -20,11 +38,11 @@ class Parser:
 
 
     def parse_input(self):
+
         with open(self.filename) as f:
-            
             node_counts = Counter(f.readline().rstrip())
             game_graph = GameGraph(node_counts)
-            
+
             learning_rate, discount_factor = map(float, f.readline().split())
             
             num_transitions = int(f.readline())
@@ -33,13 +51,47 @@ class Parser:
                 transition = Transition(src, dest, reward)
                 game_graph.add_transition(transition)
        
-            #num_actions = int(f.readline())
-            #list_of_actions = []
-            #for i in range(num_actions):
-            #    _, action_id = f.readline().split()
-            #    Action action = Action(action_id)
-               
-        return game_graph, learning_rate, discount_factor
+            num_star_nodes = int(f.readline())
+            state_action_map = dict()
+            
+            for i in range(num_star_nodes):
+                line = list(map(int, f.readline().split()))
+                state_action_map[line[0]] = line[1:]
+
+            game_graph.state_action_map = state_action_map
+
+            actions = []
+            act_id = 0
+            curr_action = None
+
+            while True:
+                line = f.readline().rstrip()
+                if line == "E":
+                    break
+                else:
+                    if 'action' in line:
+                        curr_action = Action(act_id)
+                        act_id += 1
+                        subaction = None
+                        
+                        while True:
+                            n_line = f.readline()
+                            if '#' in n_line:
+                                actions.append(curr_action)
+                                break
+                            subaction = Subaction()
+                            subaction.src = int(n_line)
+                            subaction.reward = float(f.readline())
+                            while True:
+                                dalga = f.readline()
+                                if '$' in dalga:
+                                    curr_action.add_subaction(subaction)
+                                    break
+                               
+                                dest, prob = list(map(int, dalga.split()))
+                                subaction.add_dest(dest, prob/100) 
+
+        return game_graph, learning_rate, discount_factor, actions
 
 
 #Represents the two environments as a directed graph
@@ -47,6 +99,7 @@ class GameGraph:
     def __init__(self, node_counts):
         self.transitions = []
         self.node_counts = node_counts
+        self.state_action_map = None
 
     def add_transition(self, transition):
         self.transitions.append(transition)
@@ -54,26 +107,19 @@ class GameGraph:
     def get_q_dimensions(self):
         return self.node_counts['R'] + self.node_counts['V'] + self.node_counts['O']
 
+    #KTÜ
+    def get_v_ids(self):
+        return list(self.state_action_map.keys()) + [list(self.state_action_map.keys())[-1] + 1] 
+
     def get_reward(self, src, dest):
         for trans in self.transitions:
             if trans.source == src and trans.destination == dest:
                 return trans.reward
 
-class QLearning:
-    pass
-
-class ValueIteration:
-    pass
-
-
 class Game:
     def __init__(self, filename = 'the3.inp'):
         self.parser = Parser(filename)
-        self.q_table = None
-        self.learning_rate = None
-        self.discount_factor = None
-
-        self.game_graph = None
+        
         self.actions = []
     
     def run(self):
@@ -81,10 +127,13 @@ class Game:
         self.run_session()
 
     def initialize(self):
-        self.game_graph, self.learning_rate, self.discount_factor = self.parser.parse_input()
+        self.game_graph, self.learning_rate, self.discount_factor, self.actions = self.parser.parse_input()
         
         q_dims = self.game_graph.get_q_dimensions()
         self.q_table = [[0 for _ in range(q_dims)] for _ in range(q_dims)]
+        
+        self.v_list = {key: 0 for key in self.game_graph.get_v_ids()}
+        print (self.v_list)
 
     def run_session(self):
         self.run_q_session()
@@ -133,19 +182,20 @@ class Game:
         
         self.print_q_table()
 
+    def value_iterate(self):
+        for state in self.v_list:
+            pass
 
     def print_q_table(self):
         for row in self.q_table:
             print ('\t'.join(map(str, row)))
 
-
-    #BOK
     def print_q_policy(self):
         for i,row in enumerate(self.q_table):
             row_vals = list(filter(lambda x: x[1] != 0 ,reversed(sorted(enumerate(row), key=lambda x: x[1]))))
             
             if row_vals != []:
-                print(f"{i}\t", ", ".join(str(elem[0]) for elem in row_vals))
+                print(f"{i}\t" + ", ".join(str(elem[0]) for elem in row_vals))
     
     def print_v_list(self):
         pass
