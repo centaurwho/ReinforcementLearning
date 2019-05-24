@@ -7,7 +7,6 @@ class Transition:
         self.destination = destination
         self.reward = reward
 
-
 class Action:
     def __init__(self, action_id):
         self.action_id = action_id
@@ -24,6 +23,15 @@ class Action:
                 for dest in subaction.dests:
                     res.append((dest[0], dest[1], subaction.reward))
         
+        return res
+
+    def get_next_state_ids(self, state_id):
+        res = []
+        
+        for subaction in self.subactions:
+            if subaction.src == state_id:
+                for dest in subaction.dests:
+                    res.append(dest[0])
         return res
 
     def __repr__(self):
@@ -100,7 +108,6 @@ class Parser:
                                
                                 dest, prob = list(map(int, dalga.split()))
                                 subaction.add_dest(dest, prob/100) 
-
         return game_graph, learning_rate, discount_factor, actions
 
 
@@ -148,7 +155,7 @@ class Game:
         q_dims = self.game_graph.get_q_dimensions()
         self.q_table = [[0 for _ in range(q_dims)] for _ in range(q_dims)]
         
-        self.v_list = {key: 0 for key in self.game_graph.get_v_ids()}
+        self.v_list = {key: (0, []) for key in self.game_graph.get_v_ids()}
 
     def run_session(self):
         self.run_q_session()
@@ -159,16 +166,18 @@ class Game:
             inp = input('Q-Learning >> ')
             if inp == '$':
                 self.print_q_table()
-                self.print_q_policy()
                 return
+            try:
+                episode = list(map(int, inp.split()))
+                self.update_q_table(episode)
+            except:
+                print("Please enter a valid episode")
 
-            episode = list(map(int, inp.split()))
-            self.update_q_table(episode)
-    
     def run_viter_session(self):
+        self.print_v_list()
+        self.print_v_policy()
         while True:
             inp = input('Value Iter >> ')
-            
             
             if inp == '$':
                 return
@@ -200,34 +209,42 @@ class Game:
         new_list = deepcopy(self.v_list)
         for state_id in self.v_list:
             action_values = []
+            action_next_states = []
             for action_id in self.game_graph.get_possible_actions(state_id):
                 val = 0
+                next_state_list = self.actions[action_id].get_next_state_ids(state_id) 
                 for next_state_id, prob, reward in self.actions[action_id].get_next_states(state_id):
-                    
-                    val += prob*(reward + self.discount_factor*self.v_list[next_state_id])
+                    val += prob*(reward + self.discount_factor*self.v_list[next_state_id][0])
                 action_values.append(val)
-            
+                action_next_states.append(next_state_list)
+
             if action_values != []:
-                new_list[state_id] = max(action_values)
+                new_list[state_id] = (max(action_values), action_next_states[action_values.index(max(action_values))])
 
         self.v_list = new_list
 
     def print_q_table(self):
-        for row in self.q_table:
-            print ('\t'.join(map(str, row)))
+        print_str = ""
+        for i in range(len(self.q_table)):
+            for j in range(len(self.q_table)):
+                if self.game_graph.get_reward(i, j) is None:
+                    print_str += "_"
+                else:
+                    print_str += str(self.q_table[i][j])
+                print_str += "\t"
+            print_str += "\n"
 
-    def print_q_policy(self):
-        for i,row in enumerate(self.q_table):
-            row_vals = list(filter(lambda x: x[1] != 0 ,reversed(sorted(enumerate(row), key=lambda x: x[1]))))
-            
-            if row_vals != []:
-                print(f"{i}\t" + ", ".join(str(elem[0]) for elem in row_vals))
-    
+        print(print_str)
+
     def print_v_list(self):
-        print(self.v_list)
+        print("Value table: \n")
+        for key, value in self.v_list.items():
+            print(f"{key}:\t{value[0]}")
 
     def print_v_policy(self):
-        pass
+        print("Value policy: \n")
+        for key, value in self.v_list.items():
+            print(f"{key}:\t" + ', '.join(str(id) for id in value[1]))
 
 
 if __name__ == '__main__':
